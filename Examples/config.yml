@@ -1,0 +1,18 @@
+hosts:
+  - host: linode.com:443
+  - host: linode.com:80
+  - host: digitalocean.com:443
+  - host: vultr.com:443
+  - host: gitlab.com # no port given, so just ping
+  - host: gitlab.com
+    type: http
+  - host: gitlab.com:443
+  - host: github.com:22
+  - host: madeupsite.madeupdomain123451.com
+  - host: gist.github.com:443
+    rate: 13
+    timeout: 20
+  - host: duckduckgo.com
+    type: http
+  - host: microsoft.com
+  - host: 1.1.1.1

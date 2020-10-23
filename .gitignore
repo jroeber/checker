@@ -1,0 +1,8 @@
+.vscode/
+bin/
+obj/
+Build/
+build/
+Checker.Core/Checker
+Checker
+checker

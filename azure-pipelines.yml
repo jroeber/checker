@@ -1,0 +1,69 @@
+trigger:
+  branches:
+    include:
+      - '*'
+  tags:
+    include:
+      - v*
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  - group: tokens
+  - name: VERSION
+    value: 0.0.0-ci
+
+steps:
+  - bash: |
+      if [[ $(Build.SourceBranch) == refs/tags/v* ]]; then
+        # We're building a release from a tag; take the v out and don't add metadata
+        echo '##vso[task.setvariable variable=BIN_VERSION]'$(echo $(Build.SourceBranchName) | sed 's/^v//')
+        echo '##vso[task.setvariable variable=DOCKER_TAG]'$(echo $(Build.SourceBranchName) | sed 's/^v//')
+      else
+        # It's just a CI build; use the default ci version and add metadata
+        echo '##vso[task.setvariable variable=BIN_VERSION]$(VERSION)+$(git rev-parse --short HEAD)'
+        echo '##vso[task.setvariable variable=DOCKER_TAG]ci-$(git rev-parse --short HEAD)'
+      fi
+    displayName: 'Set version info'
+  - bash: |
+      dotnet tool install -g dotnet-warp
+      /home/vsts/.dotnet/tools/dotnet-warp \
+        Checker.Core/Checker.csproj \
+        -p:Version=$(BIN_VERSION) \
+        -o checker \
+        --verbose
+    displayName: 'Build linux-x64 binary'
+  - bash: |
+      docker build \
+        --build-arg bin_version=$(BIN_VERSION) \
+        -t jroeber/checker:$(DOCKER_TAG) \
+        -t jroeber/checker:latest \
+        .
+    displayName: 'Build Docker image'
+  - bash: |
+      ls -lh checker
+      echo "Checker version: $(./checker --version)"
+      echo ""
+      docker image ls jroeber/checker
+    displayName: 'Show versions/sizes'
+  - publish: $(System.DefaultWorkingDirectory)/checker
+    artifact: bin
+    displayName: 'Save binary'
+  - bash: |
+      docker login -u jroeber -p $(docker)
+      docker push jroeber/checker:$(DOCKER_TAG)
+      docker push jroeber/checker:latest
+    displayName: 'Push image'
+    condition: startsWith(variables['Build.SourceBranch'], 'refs/tags/v')
+  - task: GithubRelease@0
+    displayName: 'Draft Github release'
+    condition: startsWith(variables['Build.SourceBranch'], 'refs/tags/v')
+    inputs:
+      gitHubConnection: github.com_jroeber
+      repositoryName: jroeber/checker
+      action: create
+      target: $(Build.SourceVersion)
+      assets: $(System.DefaultWorkingDirectory)/checker # may need to change later
+      isDraft: true
+      addChangeLog: true
